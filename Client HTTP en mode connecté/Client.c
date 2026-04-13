@@ -34,7 +34,7 @@ int main() {
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(PORT);
-    memcpy(&server_addr.sin_addr, host->h_addr, host->h_length);
+    memcpy(&server_addr.sin_addr, host->h_addr_list[0], host->h_length);
 
     // 4. Connexion
     if (connect(sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
