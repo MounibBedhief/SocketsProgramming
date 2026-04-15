@@ -1,6 +1,8 @@
 .vscode
+.gitignore
 Client
 StationClient
 StationServer
-sc
-ss
+stationClient_test
+stationServeur_concurrent
+test_logs
