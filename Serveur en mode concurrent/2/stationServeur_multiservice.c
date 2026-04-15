@@ -7,6 +7,8 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <dirent.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
 
 #define PORT 8080
 #define MAX_CLIENTS 100
@@ -20,13 +22,11 @@
 int client_count = 0;
 pthread_mutex_t client_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-// Structure pour passer les données au thread
 typedef struct {
     int socket;
     int client_id;
 } client_args_t;
 
-// Fonction pour obtenir l'heure actuelle en microsecondes
 void get_timestamp(char *buffer, size_t size) {
     struct timeval tv;
     struct tm *timeinfo;
@@ -39,7 +39,6 @@ void get_timestamp(char *buffer, size_t size) {
     strcpy(buffer, temp);
 }
 
-// SERVICE 1: Echo - Retourne les messages reçus
 void service_echo(int socket, int client_id) {
     char buffer[BUFFER_SIZE] = {0};
     char timestamp[64];
@@ -56,7 +55,6 @@ void service_echo(int socket, int client_id) {
         get_timestamp(timestamp, sizeof(timestamp));
         printf("[%s] Client #%d [ECHO] Reçu: %s", timestamp, client_id, buffer);
         
-        // Echo back to client
         send(socket, "Echo: ", 6, 0);
         send(socket, buffer, bytes_read, 0);
     }
@@ -64,12 +62,12 @@ void service_echo(int socket, int client_id) {
     send(socket, "=== FIN SERVICE ECHO ===\n", 25, 0);
 }
 
-// SERVICE 2: System Info - Retourne des infos système
 void service_sysinfo(int socket, int client_id) {
     char buffer[BUFFER_SIZE] = {0};
     char timestamp[64];
+    char full_response[BUFFER_SIZE * 2] = {0};
     
-    send(socket, "=== SERVICE SYSINFO ===\n", 25, 0);
+    strcat(full_response, "=== SERVICE SYSINFO ===\n");
     
     get_timestamp(timestamp, sizeof(timestamp));
     printf("[%s] Client #%d [SYSINFO] Requête reçue\n", timestamp, client_id);
@@ -78,8 +76,8 @@ void service_sysinfo(int socket, int client_id) {
     FILE *fp = popen("ps aux | wc -l", "r");
     if (fp != NULL) {
         if (fgets(buffer, sizeof(buffer), fp) != NULL) {
-            send(socket, "Nombre de processus: ", 21, 0);
-            send(socket, buffer, strlen(buffer), 0);
+            strcat(full_response, "Nombre de processus: ");
+            strcat(full_response, buffer);
         }
         pclose(fp);
     }
@@ -89,8 +87,8 @@ void service_sysinfo(int socket, int client_id) {
     fp = popen("uptime", "r");
     if (fp != NULL) {
         if (fgets(buffer, sizeof(buffer), fp) != NULL) {
-            send(socket, "Uptime: ", 8, 0);
-            send(socket, buffer, strlen(buffer), 0);
+            strcat(full_response, "Uptime: ");
+            strcat(full_response, buffer);
         }
         pclose(fp);
     }
@@ -100,22 +98,24 @@ void service_sysinfo(int socket, int client_id) {
     fp = popen("cat /proc/loadavg | cut -d' ' -f1-3", "r");
     if (fp != NULL) {
         if (fgets(buffer, sizeof(buffer), fp) != NULL) {
-            send(socket, "Load Average: ", 14, 0);
-            send(socket, buffer, strlen(buffer), 0);
+            strcat(full_response, "Load Average: ");
+            strcat(full_response, buffer);
         }
         pclose(fp);
     }
     
-    send(socket, "=== FIN SERVICE SYSINFO ===\n", 28, 0);
+    strcat(full_response, "=== FIN SERVICE SYSINFO ===\n");
+    
+    send(socket, full_response, strlen(full_response), 0);
 }
 
-// SERVICE 3: File List - Liste les fichiers du répertoire courant
 void service_filelist(int socket, int client_id) {
     char buffer[BUFFER_SIZE] = {0};
     char timestamp[64];
+    char full_response[BUFFER_SIZE * 4] = {0};
     
-    send(socket, "=== SERVICE FILELIST ===\n", 26, 0);
-    send(socket, "Fichiers du répertoire courant:\n", 32, 0);
+    strcat(full_response, "=== SERVICE FILELIST ===\n");
+    strcat(full_response, "Fichiers du répertoire courant:\n");
     
     get_timestamp(timestamp, sizeof(timestamp));
     printf("[%s] Client #%d [FILELIST] Requête reçue\n", timestamp, client_id);
@@ -125,19 +125,20 @@ void service_filelist(int socket, int client_id) {
         struct dirent *entry;
         int count = 0;
         while ((entry = readdir(dir)) != NULL && count < 20) {
-            if (entry->d_name[0] != '.') {  // Skip hidden files
+            if (entry->d_name[0] != '.') {
                 snprintf(buffer, BUFFER_SIZE, "  - %s\n", entry->d_name);
-                send(socket, buffer, strlen(buffer), 0);
+                strcat(full_response, buffer);
                 count++;
             }
         }
         closedir(dir);
     }
     
-    send(socket, "=== FIN SERVICE FILELIST ===\n", 29, 0);
+    strcat(full_response, "=== FIN SERVICE FILELIST ===\n");
+    
+    send(socket, full_response, strlen(full_response), 0);
 }
 
-// Fonction exécutée par chaque thread client
 void* handle_client(void* arg) {
     client_args_t *args = (client_args_t *)arg;
     int socket = args->socket;
@@ -155,7 +156,6 @@ void* handle_client(void* arg) {
     get_timestamp(timestamp, sizeof(timestamp));
     printf("[%s] Client #%d connecté\n", timestamp, client_id);
     
-    // Afficher le menu des services
     const char *menu = "\n=== SERVEUR MULTI-SERVICE ===\n"
                        "Choisissez un service:\n"
                        "1 - SERVICE ECHO (echo messages)\n"
@@ -164,7 +164,6 @@ void* handle_client(void* arg) {
                        "Entrez le numéro du service (1, 2 ou 3): ";
     send(socket, menu, strlen(menu), 0);
     
-    // Lire le choix du client
     memset(buffer, 0, BUFFER_SIZE);
     int bytes_read = read(socket, buffer, BUFFER_SIZE - 1);
     
@@ -174,7 +173,6 @@ void* handle_client(void* arg) {
         get_timestamp(timestamp, sizeof(timestamp));
         printf("[%s] Client #%d a choisi le service %d\n", timestamp, client_id, service);
         
-        // Exécuter le service demandé
         switch(service) {
             case SERVICE_ECHO:
                 service_echo(socket, client_id);
@@ -208,10 +206,13 @@ int main() {
     int addrlen = sizeof(address);
     int client_id_counter = 0;
     
-    // Création socket
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
     
-    // Permettre la réutilisation du port
+    if (server_fd < 0) {
+        perror("socket creation failed");
+        return 1;
+    }
+    
     int opt = 1;
     setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
     
@@ -219,14 +220,15 @@ int main() {
     address.sin_addr.s_addr = INADDR_ANY;
     address.sin_port = htons(PORT);
     
-    // Bind
     if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
         perror("bind failed");
         return 1;
     }
     
-    // Listen
-    listen(server_fd, MAX_CLIENTS);
+    if (listen(server_fd, MAX_CLIENTS) < 0) {
+        perror("listen failed");
+        return 1;
+    }
     
     char timestamp[64];
     get_timestamp(timestamp, sizeof(timestamp));
@@ -237,8 +239,8 @@ int main() {
     printf("[%s]   - SERVICE 2: SYSINFO\n", timestamp);
     printf("[%s]   - SERVICE 3: FILELIST\n", timestamp);
     printf("[%s] \n", timestamp);
+    fflush(stdout);
     
-    // Boucle d'acceptation des clients
     while(1) {
         struct sockaddr_in client_addr;
         int new_socket = accept(server_fd, (struct sockaddr *)&client_addr, (socklen_t *)&addrlen);
@@ -248,14 +250,11 @@ int main() {
             continue;
         }
         
-        // Mise à jour du compteur
         pthread_mutex_lock(&client_mutex);
-        client_count++;
         client_id_counter++;
         int current_client_id = client_id_counter;
         pthread_mutex_unlock(&client_mutex);
         
-        // Création d'un thread pour gérer ce client
         pthread_t thread_id;
         client_args_t *args = (client_args_t *)malloc(sizeof(client_args_t));
         args->socket = new_socket;

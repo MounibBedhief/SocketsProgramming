@@ -60,12 +60,9 @@ int main() {
     get_timestamp(timestamp, sizeof(timestamp));
     printf("[%s] Client FILELIST #%d: Réception de la liste des fichiers...\n", timestamp, client_id);
     
-    for(int i = 0; i < 30; i++) {
-        memset(buffer, 0, sizeof(buffer));
-        int bytes_read = recv(sock, buffer, sizeof(buffer) - 1, 0);
-        if (bytes_read <= 0) break;
-        printf("%s", buffer);
-    }
+    memset(buffer, 0, sizeof(buffer));
+    recv(sock, buffer, sizeof(buffer) - 1, 0);
+    printf("%s", buffer);
     
     get_timestamp(timestamp, sizeof(timestamp));
     printf("[%s] Client FILELIST #%d: Déconnexion\n", timestamp, client_id);

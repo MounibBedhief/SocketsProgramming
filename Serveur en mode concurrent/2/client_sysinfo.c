@@ -54,18 +54,15 @@ int main() {
     printf("[%s] Client SYSINFO #%d: Envoi du choix de service (2)\n", timestamp, client_id);
     send(sock, "2\n", 2, 0);
     
-    sleep(2);  // Laisser le temps au serveur de récupérer les infos
+    sleep(1);
     
     // Lire tous les résultats
     get_timestamp(timestamp, sizeof(timestamp));
     printf("[%s] Client SYSINFO #%d: Réception des données système...\n", timestamp, client_id);
     
-    for(int i = 0; i < 5; i++) {
-        memset(buffer, 0, sizeof(buffer));
-        int bytes_read = recv(sock, buffer, sizeof(buffer) - 1, 0);
-        if (bytes_read <= 0) break;
-        printf("%s", buffer);
-    }
+    memset(buffer, 0, sizeof(buffer));
+    recv(sock, buffer, sizeof(buffer) - 1, 0);
+    printf("%s", buffer);
     
     get_timestamp(timestamp, sizeof(timestamp));
     printf("[%s] Client SYSINFO #%d: Déconnexion\n", timestamp, client_id);
