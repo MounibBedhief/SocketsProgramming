@@ -6,3 +6,9 @@ StationServer
 stationClient_test
 stationServeur_concurrent
 test_logs
+
+client_sysinfo
+client_filelist
+client_echo
+stationServeur_multiservice
+test_logs_multiservice
